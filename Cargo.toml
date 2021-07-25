@@ -1,0 +1,24 @@
+[package]
+name = "hydrus-pixiv-tagger"
+version = "0.1.0"
+edition = "2018"
+license = "Apache-2.0"
+description = "Automatically tag hydrus file by using pixiv and saucenao"
+author = ["trivernis <trivernis@protonmail.com>"]
+readme = "README.md"
+repository = "https://github.com/Trivernis/hydrus-pixiv-tagger"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+pixiv-rs = "0.1.0"
+hydrus-api = "0.3.5"
+rustnao = "0.2"
+structopt = "0.3.22"
+tempdir = "0.3.7"
+env_logger = "0.9.0"
+log = "0.4.14"
+
+[dependencies.tokio]
+version = "1.9.0"
+features = ["macros", "rt-multi-thread", "time"]
