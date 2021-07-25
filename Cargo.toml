@@ -1,6 +1,6 @@
 [package]
 name = "hydrus-pixiv-tagger"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2018"
 license = "Apache-2.0"
 description = "Automatically tag hydrus file by using pixiv and saucenao"
@@ -22,4 +22,4 @@ thiserror = "1.0.26"
 
 [dependencies.tokio]
 version = "1.9.0"
-features = ["macros", "rt-multi-thread", "time"]
+features = ["macros", "rt", "time"]

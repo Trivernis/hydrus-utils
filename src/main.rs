@@ -46,7 +46,7 @@ struct Opt {
     finish_tag: Option<String>,
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 async fn main() {
     env_logger::builder().init();
     let opt: Opt = Opt::from_args();
