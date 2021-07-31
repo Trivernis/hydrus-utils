@@ -1,7 +1,6 @@
 mod error;
 
 use crate::error::Result;
-use hydrus_api::api_core::searching_and_fetching_files::FileSearchLocation;
 use hydrus_api::wrapper::hydrus_file::HydrusFile;
 use hydrus_api::wrapper::service::ServiceName;
 use hydrus_api::wrapper::tag::Tag;
@@ -10,40 +9,37 @@ use pixiv_rs::PixivClient;
 use rustnao::{Handler, HandlerBuilder, Sauce};
 use std::fs;
 use std::path::PathBuf;
+use structopt::clap::AppSettings;
 use structopt::StructOpt;
 use tempdir::TempDir;
 use tokio::time::{Duration, Instant};
 
 #[derive(StructOpt, Debug)]
-#[structopt()]
+#[structopt(settings = &[AppSettings::AllowLeadingHyphen])]
 struct Opt {
-    /// Tags used to search for files
-    #[structopt(short, long)]
-    tags: Vec<String>,
-
     /// The saucenao api key
-    #[structopt(long)]
+    #[structopt(long, env)]
     saucenao_key: String,
 
     /// The hydrus client api key
-    #[structopt(long)]
+    #[structopt(long, env)]
     hydrus_key: String,
 
     /// The url to the hydrus client api
-    #[structopt(long, default_value = "http://127.0.0.1:45869")]
+    #[structopt(long, default_value = "http://127.0.0.1:45869", env)]
     hydrus_url: String,
 
     /// The tag service the tags will be assigned to
     #[structopt(long, default_value = "my tags")]
     tag_service: String,
 
-    /// Searches in the inbox instead
-    #[structopt(long)]
-    inbox: bool,
-
     /// Tag that is assigned to files that have been processed
     #[structopt(long)]
     finish_tag: Option<String>,
+
+    /// Tags used to search for files
+    #[structopt(short, long)]
+    tags: Vec<String>,
 }
 
 #[tokio::main(flavor = "current_thread")]
@@ -60,15 +56,11 @@ async fn main() {
     let hydrus = Hydrus::new(Client::new(opt.hydrus_url, opt.hydrus_key));
     let pixiv = PixivClient::new();
 
-    let search_location = if opt.inbox {
-        FileSearchLocation::Inbox
-    } else {
-        FileSearchLocation::Archive
-    };
     let tags = opt.tags.into_iter().map(Tag::from).collect();
     let service = ServiceName(opt.tag_service);
 
-    let files = hydrus.search(search_location, tags).await.unwrap();
+    let files = hydrus.search(tags).await.unwrap();
+    log::info!("Found {} files", files.len());
     let tmpdir = TempDir::new("hydrus-files").unwrap();
 
     let sleep_duration = Duration::from_secs(6);
