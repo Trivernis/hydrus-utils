@@ -59,7 +59,7 @@ async fn main() {
     let tags = opt.tags.into_iter().map(Tag::from).collect();
     let service = ServiceName(opt.tag_service);
 
-    let files = hydrus.search(tags).await.unwrap();
+    let files = hydrus.search().add_tags(tags).run().await.unwrap();
     log::info!("Found {} files", files.len());
     let tmpdir = TempDir::new("hydrus-files").unwrap();
 

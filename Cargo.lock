@@ -599,20 +599,22 @@ checksum = "9a3a5bfb195931eeb336b2a7b4d761daec841b97f947d34394601737a7bba5e4"
 
 [[package]]
 name = "hydrus-api"
-version = "0.4.0"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ce38cc8d4f48084f33168b7e6366647e3d6528f44ff2b8e5a83168102e88f94f"
+checksum = "7f942480c8c8822ad375218bc5247f98f20b056cb3492af746eee8c3ce310a2b"
 dependencies = [
  "chrono",
+ "lazy_static",
  "log",
  "mime",
+ "regex",
  "reqwest 0.11.4",
  "serde",
 ]
 
 [[package]]
 name = "hydrus-pixiv-tagger"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "env_logger",
  "hydrus-api",
