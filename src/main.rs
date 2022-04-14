@@ -1,22 +1,31 @@
 mod error;
+pub mod search;
 
 use crate::error::Result;
+use crate::search::get_urls;
 use hydrus_api::wrapper::hydrus_file::HydrusFile;
 use hydrus_api::wrapper::service::ServiceName;
 use hydrus_api::wrapper::tag::Tag;
 use hydrus_api::{Client, Hydrus};
 use pixiv_rs::PixivClient;
 use rustnao::{Handler, HandlerBuilder, Sauce};
-use std::fs;
-use std::path::PathBuf;
 use structopt::clap::AppSettings;
 use structopt::StructOpt;
 use tempdir::TempDir;
 use tokio::time::{Duration, Instant};
 
 #[derive(StructOpt, Debug)]
+#[structopt()]
+enum Command {
+    /// Sends urls to hydrus to be imported
+    SendUrl(Options),
+    /// Maps the tags found for the hydrus url to the hydrus file
+    SendTags(Options),
+}
+
+#[derive(StructOpt, Debug, Clone)]
 #[structopt(settings = &[AppSettings::AllowLeadingHyphen])]
-struct Opt {
+struct Options {
     /// The saucenao api key
     #[structopt(long, env)]
     saucenao_key: String,
@@ -45,7 +54,11 @@ struct Opt {
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
     env_logger::builder().init();
-    let opt: Opt = Opt::from_args();
+    let cmd: Command = Command::from_args();
+    let opt = match &cmd {
+        Command::SendUrl(opt) => opt.clone(),
+        Command::SendTags(opt) => opt.clone(),
+    };
 
     let handler = HandlerBuilder::new()
         .api_key(&opt.saucenao_key)
@@ -67,14 +80,21 @@ async fn main() {
 
     for mut file in files {
         let start = Instant::now();
-        if let Err(e) = search_and_assign_tags(&handler, &pixiv, &service, &tmpdir, &mut file).await
-        {
-            let hash = file.hash().await.unwrap();
-            log::error!("Failed to search and assign tags to file {}: {:?}", hash, e);
-        } else if let Some(finish_tag) = &opt.finish_tag {
-            file.add_tags(service.clone(), vec![finish_tag.into()])
-                .await
-                .unwrap();
+        match &cmd {
+            Command::SendUrl(_) => {
+                let _ = search_and_send_urls(&hydrus, &handler, &tmpdir, &mut file).await;
+            }
+            Command::SendTags(_) => {
+                let _ = tag_file(
+                    opt.finish_tag.as_ref(),
+                    &handler,
+                    &pixiv,
+                    &service,
+                    &tmpdir,
+                    &mut file,
+                )
+                .await;
+            }
         }
         let elapsed = start.elapsed();
 
@@ -84,6 +104,41 @@ async fn main() {
     }
 }
 
+async fn tag_file(
+    finish_tag: Option<&String>,
+    handler: &Handler,
+    pixiv: &PixivClient,
+    service: &ServiceName,
+    tmpdir: &TempDir,
+    mut file: &mut HydrusFile,
+) -> Result<()> {
+    if let Err(e) = search_and_assign_tags(&handler, &pixiv, &service, &tmpdir, &mut file).await {
+        let hash = file.hash().await.unwrap();
+        log::error!("Failed to search tags to file {}: {:?}", hash, e);
+    } else if let Some(finish_tag) = finish_tag {
+        file.add_tags(service.clone().into(), vec![finish_tag.into()])
+            .await
+            .unwrap();
+    }
+
+    Ok(())
+}
+
+async fn search_and_send_urls(
+    hydrus: &Hydrus,
+    handler: &Handler,
+    tmpdir: &TempDir,
+    file: &mut HydrusFile,
+) -> Result<()> {
+    let sauces = get_sauces_for_file(&handler, tmpdir, file).await?;
+    let urls = get_urls(&sauces);
+    for url in urls {
+        hydrus.import().url(url).run().await?;
+    }
+
+    Ok(())
+}
+
 async fn search_and_assign_tags(
     handler: &Handler,
     pixiv: &PixivClient,
@@ -91,18 +146,24 @@ async fn search_and_assign_tags(
     tmpdir: &TempDir,
     mut file: &mut HydrusFile,
 ) -> Result<()> {
+    log::debug!("Getting tags for hydrus file {:?}", file.id);
+    let sauces = get_sauces_for_file(&handler, tmpdir, file).await?;
+
+    assign_pixiv_tags_and_url(&pixiv, service, &mut file, &sauces).await
+}
+
+async fn get_sauces_for_file(
+    handler: &Handler,
+    tmpdir: &TempDir,
+    mut file: &mut HydrusFile,
+) -> Result<Vec<Sauce>> {
     log::debug!("Creating tmp file for hydrus file {:?}", file.id);
-    let path = create_tmp_sauce_file(&tmpdir, &mut file).await?;
+    let path = search::create_tmp_sauce_file(&tmpdir, &mut file).await?;
     log::debug!("Getting sauce for hydrus file {:?}", file.id);
 
     let sauce = handler.get_sauce(path.to_str().unwrap(), None, None)?;
     log::debug!("Getting tags for hydrus file {:?}", file.id);
-
-    assign_pixiv_tags_and_url(&pixiv, service, &mut file, &sauce).await
-}
-
-fn get_pixiv_url(sauce: &Vec<Sauce>) -> Option<&String> {
-    sauce.first().and_then(|s| s.ext_urls.first())
+    Ok(sauce)
 }
 
 async fn assign_pixiv_tags_and_url(
@@ -112,12 +173,12 @@ async fn assign_pixiv_tags_and_url(
     sauce: &Vec<Sauce>,
 ) -> Result<()> {
     let hash = file.hash().await?;
-    if let Some(url) = get_pixiv_url(&sauce) {
-        let tags = get_tags_for_sauce(&pixiv, url).await?;
+    if let Some(url) = search::get_pixiv_url(&sauce) {
+        let tags = search::get_tags_for_sauce(&pixiv, url).await?;
 
         if tags.len() > 0 {
             log::info!("Found {} tags for file {:?}", tags.len(), hash);
-            file.add_tags(service.clone(), tags).await?;
+            file.add_tags(service.clone().into(), tags).await?;
         } else {
             log::info!("No tags for file {:?} found", hash);
         }
@@ -127,29 +188,4 @@ async fn assign_pixiv_tags_and_url(
     }
 
     Ok(())
-}
-
-async fn get_tags_for_sauce(pixiv: &PixivClient, url: &String) -> Result<Vec<Tag>> {
-    let mut tags = Vec::new();
-
-    if let Some(pixiv_id) = url.rsplit_once("=").map(|s| s.1) {
-        log::trace!("Pixiv id is '{}'", pixiv_id);
-        let illustration = pixiv.illustration(pixiv_id).await?;
-
-        for tag in illustration.tags.tags {
-            let tag_value = tag.translation.get("en").unwrap_or(&tag.tag);
-            tags.push(Tag::from(tag_value));
-        }
-    }
-
-    Ok(tags)
-}
-
-async fn create_tmp_sauce_file(tmpdir: &TempDir, file: &mut HydrusFile) -> Result<PathBuf> {
-    let hash = file.hash().await?;
-    let bytes = file.retrieve().await?.bytes;
-    let path = tmpdir.path().join(&hash);
-    fs::write(&path, bytes)?;
-
-    Ok(path)
 }
