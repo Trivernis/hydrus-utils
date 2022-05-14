@@ -55,6 +55,7 @@ struct Options {
 async fn main() {
     env_logger::builder().init();
     let cmd: Command = Command::from_args();
+    log::debug!("args: {cmd:?}");
     let opt = match &cmd {
         Command::SendUrl(opt) => opt.clone(),
         Command::SendTags(opt) => opt.clone(),
@@ -98,7 +99,7 @@ async fn main() {
         }
         let elapsed = start.elapsed();
 
-        if elapsed.as_secs() < 6 {
+        if elapsed.as_secs() < 8 {
             tokio::time::sleep(sleep_duration - elapsed).await; // rate limit of 6# / 30s
         }
     }
