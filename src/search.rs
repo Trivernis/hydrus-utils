@@ -14,7 +14,7 @@ pub async fn get_tags_for_sauce(pixiv: &PixivClient, url: &String) -> crate::Res
     let mut tags = Vec::new();
 
     if let Some(pixiv_id) = url.rsplit_once("=").map(|s| s.1) {
-        log::trace!("Pixiv id is '{}'", pixiv_id);
+        tracing::trace!("Pixiv id is '{}'", pixiv_id);
         let illustration = pixiv.illustration(pixiv_id).await?;
 
         for tag in illustration.tags.tags {

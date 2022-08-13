@@ -12,14 +12,17 @@ use hydrus_api::wrapper::tag::Tag;
 use hydrus_api::{Client, Hydrus};
 use pixiv_rs::PixivClient;
 use rustnao::{Handler, HandlerBuilder, Sauce};
+use std::str::FromStr;
 use tempdir::TempDir;
 use tokio::time::{Duration, Instant};
+use tracing_subscriber::fmt::format::FmtSpan;
+use tracing_subscriber::EnvFilter;
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
-    env_logger::builder().init();
+    init_logger();
     let args: Args = Args::parse();
-    log::debug!("args: {args:?}");
+    tracing::debug!("args: {args:?}");
     let opt = match &args.subcommand {
         Command::FindAndSendUrl(opt) => opt.clone(),
         Command::FindAndSendTags(opt) => opt.clone(),
@@ -38,7 +41,7 @@ async fn main() {
     let service = ServiceName(opt.tag_service);
 
     let files = hydrus.search().add_tags(tags).run().await.unwrap();
-    log::info!("Found {} files", files.len());
+    tracing::info!("Found {} files", files.len());
     let tmpdir = TempDir::new("hydrus-files").unwrap();
 
     let sleep_duration = Duration::from_secs(6);
@@ -69,6 +72,20 @@ async fn main() {
     }
 }
 
+fn init_logger() {
+    const DEFAULT_ENV_FILTER: &str = "info";
+    let filter_string =
+        std::env::var("RUST_LOG").unwrap_or_else(|_| DEFAULT_ENV_FILTER.to_string());
+    let env_filter =
+        EnvFilter::from_str(&*filter_string).expect("failed to parse env filter string");
+    tracing_subscriber::fmt::SubscriberBuilder::default()
+        .with_env_filter(env_filter)
+        .with_writer(std::io::stdout)
+        .with_span_events(FmtSpan::NEW | FmtSpan::CLOSE)
+        .compact()
+        .init();
+}
+
 async fn tag_file(
     finish_tag: Option<&String>,
     handler: &Handler,
@@ -79,7 +96,7 @@ async fn tag_file(
 ) -> Result<()> {
     if let Err(e) = search_and_assign_tags(&handler, &pixiv, &service, &tmpdir, &mut file).await {
         let hash = file.hash().await.unwrap();
-        log::error!("Failed to search tags to file {}: {:?}", hash, e);
+        tracing::error!("Failed to search tags to file {}: {:?}", hash, e);
     } else if let Some(finish_tag) = finish_tag {
         file.add_tags(service.clone().into(), vec![finish_tag.into()])
             .await
@@ -111,7 +128,7 @@ async fn search_and_assign_tags(
     tmpdir: &TempDir,
     mut file: &mut HydrusFile,
 ) -> Result<()> {
-    log::debug!("Getting tags for hydrus file {:?}", file.id);
+    tracing::debug!("Getting tags for hydrus file {:?}", file.id);
     let sauces = get_sauces_for_file(&handler, tmpdir, file).await?;
 
     assign_pixiv_tags_and_url(&pixiv, service, &mut file, &sauces).await
@@ -122,12 +139,12 @@ async fn get_sauces_for_file(
     tmpdir: &TempDir,
     mut file: &mut HydrusFile,
 ) -> Result<Vec<Sauce>> {
-    log::debug!("Creating tmp file for hydrus file {:?}", file.id);
+    tracing::debug!("Creating tmp file for hydrus file {:?}", file.id);
     let path = search::create_tmp_sauce_file(&tmpdir, &mut file).await?;
-    log::debug!("Getting sauce for hydrus file {:?}", file.id);
+    tracing::debug!("Getting sauce for hydrus file {:?}", file.id);
 
     let sauce = handler.get_sauce(path.to_str().unwrap(), None, None)?;
-    log::debug!("Getting tags for hydrus file {:?}", file.id);
+    tracing::debug!("Getting tags for hydrus file {:?}", file.id);
     Ok(sauce)
 }
 
@@ -142,14 +159,14 @@ async fn assign_pixiv_tags_and_url(
         let tags = search::get_tags_for_sauce(&pixiv, url).await?;
 
         if tags.len() > 0 {
-            log::info!("Found {} tags for file {:?}", tags.len(), hash);
+            tracing::info!("Found {} tags for file {:?}", tags.len(), hash);
             file.add_tags(service.clone().into(), tags).await?;
         } else {
-            log::info!("No tags for file {:?} found", hash);
+            tracing::info!("No tags for file {:?} found", hash);
         }
         file.associate_urls(vec![url.to_string()]).await?;
     } else {
-        log::info!("No pixiv post for file {:?} found", hash);
+        tracing::info!("No pixiv post for file {:?} found", hash);
     }
 
     Ok(())
