@@ -25,6 +25,8 @@ enum DataEntryChild {
     T3(T3Data),
     #[serde(alias = "t1")]
     T1(HashMap<String, Value>),
+    #[serde(alias = "more")]
+    More(HashMap<String, Value>),
 }
 
 #[derive(Deserialize, Debug)]
@@ -78,7 +80,7 @@ async fn get_post(url: &str) -> Result<T3Data> {
 
     match entry {
         DataEntryChild::T3(t3) => Ok(t3),
-        DataEntryChild::T1(_) => panic!("Invalid data entry t1"),
+        DataEntryChild::T1(_) | DataEntryChild::More(_) => panic!("Invalid data entry t1 or more"),
     }
 }
 

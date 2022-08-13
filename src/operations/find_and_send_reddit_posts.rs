@@ -8,6 +8,7 @@ pub async fn find_and_send_reddit_posts(hydrus: &Hydrus, post_urls: Vec<String>)
 
     for (index, post) in post_urls.into_iter().enumerate() {
         tracing::info!("Importing post {} of {}", index + 1, total_posts);
+        tracing::debug!("Post {}", post);
         let images = get_post_images(&post).await?;
         tracing::info!("Found {} images for post {}", images.len(), post);
 
