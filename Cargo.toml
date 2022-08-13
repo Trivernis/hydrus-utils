@@ -1,7 +1,7 @@
 [package]
-name = "hydrus-pixiv-tagger"
+name = "hydrus-utils"
 version = "0.3.0"
-edition = "2018"
+edition = "2021"
 license = "Apache-2.0"
 description = "Automatically tag hydrus file by using pixiv and saucenao"
 authors = ["trivernis <trivernis@protonmail.com>"]
@@ -14,12 +14,12 @@ repository = "https://github.com/Trivernis/hydrus-pixiv-tagger"
 pixiv-rs = "0.1.0"
 hydrus-api = "0.9.3"
 rustnao = "0.2.1"
-structopt = "0.3.26"
 tempdir = "0.3.7"
 env_logger = "0.9.0"
-log = "0.4.16"
-thiserror = "1.0.30"
+log = "0.4.17"
+thiserror = "1.0.32"
+clap = { version = "3.2.17", features = ["derive", "env"] }
 
 [dependencies.tokio]
-version = "1.17.0"
+version = "1.20.1"
 features = ["macros", "rt", "time"]

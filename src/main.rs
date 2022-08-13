@@ -3,60 +3,67 @@ pub mod search;
 
 use crate::error::Result;
 use crate::search::get_urls;
+use clap::{Parser, Subcommand};
 use hydrus_api::wrapper::hydrus_file::HydrusFile;
 use hydrus_api::wrapper::service::ServiceName;
 use hydrus_api::wrapper::tag::Tag;
 use hydrus_api::{Client, Hydrus};
 use pixiv_rs::PixivClient;
 use rustnao::{Handler, HandlerBuilder, Sauce};
-use structopt::clap::AppSettings;
-use structopt::StructOpt;
 use tempdir::TempDir;
 use tokio::time::{Duration, Instant};
 
-#[derive(StructOpt, Debug)]
-#[structopt()]
+#[derive(Parser, Debug)]
+#[clap(author, version, about)]
+struct Args {
+    #[clap(subcommand)]
+    subcommand: Command,
+
+    /// The hydrus client api key
+    #[clap(long, env)]
+    hydrus_key: String,
+
+    /// The url to the hydrus client api
+    #[clap(long, default_value = "http://127.0.0.1:45869", env)]
+    hydrus_url: String,
+}
+
+#[derive(Subcommand, Clone, Debug)]
 enum Command {
+    #[clap(name = "send-url")]
     /// Sends urls to hydrus to be imported
     SendUrl(Options),
+
+    #[clap(name = "send-tags")]
     /// Maps the tags found for the hydrus url to the hydrus file
     SendTags(Options),
 }
 
-#[derive(StructOpt, Debug, Clone)]
-#[structopt(settings = &[AppSettings::AllowLeadingHyphen])]
+#[derive(Parser, Debug, Clone)]
 struct Options {
     /// The saucenao api key
-    #[structopt(long, env)]
+    #[clap(long, env)]
     saucenao_key: String,
 
-    /// The hydrus client api key
-    #[structopt(long, env)]
-    hydrus_key: String,
-
-    /// The url to the hydrus client api
-    #[structopt(long, default_value = "http://127.0.0.1:45869", env)]
-    hydrus_url: String,
-
     /// The tag service the tags will be assigned to
-    #[structopt(long, default_value = "my tags")]
+    #[clap(long, default_value = "my tags")]
     tag_service: String,
 
     /// Tag that is assigned to files that have been processed
-    #[structopt(long)]
+    #[clap(long)]
     finish_tag: Option<String>,
 
     /// Tags used to search for files
-    #[structopt(short, long)]
+    #[clap(short, long)]
     tags: Vec<String>,
 }
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
     env_logger::builder().init();
-    let cmd: Command = Command::from_args();
-    log::debug!("args: {cmd:?}");
-    let opt = match &cmd {
+    let args: Args = Args::parse();
+    log::debug!("args: {args:?}");
+    let opt = match &args.subcommand {
         Command::SendUrl(opt) => opt.clone(),
         Command::SendTags(opt) => opt.clone(),
     };
@@ -67,7 +74,7 @@ async fn main() {
         .db(Handler::PIXIV)
         .build();
 
-    let hydrus = Hydrus::new(Client::new(opt.hydrus_url, opt.hydrus_key));
+    let hydrus = Hydrus::new(Client::new(&args.hydrus_url, &args.hydrus_key));
     let pixiv = PixivClient::new();
 
     let tags = opt.tags.into_iter().map(Tag::from).collect();
@@ -81,7 +88,7 @@ async fn main() {
 
     for mut file in files {
         let start = Instant::now();
-        match &cmd {
+        match &args.subcommand {
             Command::SendUrl(_) => {
                 let _ = search_and_send_urls(&hydrus, &handler, &tmpdir, &mut file).await;
             }
