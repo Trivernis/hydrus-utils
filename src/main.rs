@@ -1,17 +1,18 @@
 mod args;
 mod error;
-pub mod search;
+mod operations;
+pub mod utils;
 
 use crate::error::Result;
-use crate::search::get_urls;
+use crate::operations::find_and_send_tags::find_and_send_tags;
+use crate::operations::find_and_send_urls::find_and_send_urls;
 use args::*;
 use clap::Parser;
-use hydrus_api::wrapper::hydrus_file::HydrusFile;
 use hydrus_api::wrapper::service::ServiceName;
 use hydrus_api::wrapper::tag::Tag;
 use hydrus_api::{Client, Hydrus};
 use pixiv_rs::PixivClient;
-use rustnao::{Handler, HandlerBuilder, Sauce};
+use rustnao::{Handler, HandlerBuilder};
 use std::str::FromStr;
 use tempdir::TempDir;
 use tokio::time::{Duration, Instant};
@@ -23,53 +24,13 @@ async fn main() {
     init_logger();
     let args: Args = Args::parse();
     tracing::debug!("args: {args:?}");
-    let opt = match &args.subcommand {
-        Command::FindAndSendUrl(opt) => opt.clone(),
-        Command::FindAndSendTags(opt) => opt.clone(),
-    };
-
-    let handler = HandlerBuilder::new()
-        .api_key(&opt.saucenao_key)
-        .min_similarity(80)
-        .db(Handler::PIXIV)
-        .build();
-
     let hydrus = Hydrus::new(Client::new(&args.hydrus_url, &args.hydrus_key));
-    let pixiv = PixivClient::new();
 
-    let tags = opt.tags.into_iter().map(Tag::from).collect();
-    let service = ServiceName(opt.tag_service);
-
-    let files = hydrus.search().add_tags(tags).run().await.unwrap();
-    tracing::info!("Found {} files", files.len());
-    let tmpdir = TempDir::new("hydrus-files").unwrap();
-
-    let sleep_duration = Duration::from_secs(6);
-
-    for mut file in files {
-        let start = Instant::now();
-        match &args.subcommand {
-            Command::FindAndSendUrl(_) => {
-                let _ = search_and_send_urls(&hydrus, &handler, &tmpdir, &mut file).await;
-            }
-            Command::FindAndSendTags(_) => {
-                let _ = tag_file(
-                    opt.finish_tag.as_ref(),
-                    &handler,
-                    &pixiv,
-                    &service,
-                    &tmpdir,
-                    &mut file,
-                )
-                .await;
-            }
-        }
-        let elapsed = start.elapsed();
-
-        if elapsed.as_secs() < 8 {
-            tokio::time::sleep(sleep_duration - elapsed).await; // rate limit of 6# / 30s
-        }
+    match args.subcommand {
+        Command::FindAndSendUrl(opt) => send_tags_or_urls(opt, hydrus, true).await,
+        Command::FindAndSendTags(opt) => send_tags_or_urls(opt, hydrus, false).await,
     }
+    .expect("Failed to send tags or urls");
 }
 
 fn init_logger() {
@@ -86,87 +47,44 @@ fn init_logger() {
         .init();
 }
 
-async fn tag_file(
-    finish_tag: Option<&String>,
-    handler: &Handler,
-    pixiv: &PixivClient,
-    service: &ServiceName,
-    tmpdir: &TempDir,
-    mut file: &mut HydrusFile,
-) -> Result<()> {
-    if let Err(e) = search_and_assign_tags(&handler, &pixiv, &service, &tmpdir, &mut file).await {
-        let hash = file.hash().await.unwrap();
-        tracing::error!("Failed to search tags to file {}: {:?}", hash, e);
-    } else if let Some(finish_tag) = finish_tag {
-        file.add_tags(service.clone().into(), vec![finish_tag.into()])
-            .await
-            .unwrap();
-    }
+async fn send_tags_or_urls(opt: Options, hydrus: Hydrus, send_urls: bool) -> Result<()> {
+    let pixiv = PixivClient::new();
 
-    Ok(())
-}
+    let handler = HandlerBuilder::new()
+        .api_key(&opt.saucenao_key)
+        .min_similarity(80)
+        .db(Handler::PIXIV)
+        .build();
 
-async fn search_and_send_urls(
-    hydrus: &Hydrus,
-    handler: &Handler,
-    tmpdir: &TempDir,
-    file: &mut HydrusFile,
-) -> Result<()> {
-    let sauces = get_sauces_for_file(&handler, tmpdir, file).await?;
-    let urls = get_urls(&sauces);
-    for url in urls {
-        hydrus.import().url(url).run().await?;
-    }
+    let tags = opt.tags.into_iter().map(Tag::from).collect();
+    let service = ServiceName(opt.tag_service);
 
-    Ok(())
-}
+    let files = hydrus.search().add_tags(tags).run().await.unwrap();
+    tracing::info!("Found {} files", files.len());
+    let tmpdir = TempDir::new("hydrus-files").unwrap();
 
-async fn search_and_assign_tags(
-    handler: &Handler,
-    pixiv: &PixivClient,
-    service: &ServiceName,
-    tmpdir: &TempDir,
-    mut file: &mut HydrusFile,
-) -> Result<()> {
-    tracing::debug!("Getting tags for hydrus file {:?}", file.id);
-    let sauces = get_sauces_for_file(&handler, tmpdir, file).await?;
+    let sleep_duration = Duration::from_secs(6);
 
-    assign_pixiv_tags_and_url(&pixiv, service, &mut file, &sauces).await
-}
-
-async fn get_sauces_for_file(
-    handler: &Handler,
-    tmpdir: &TempDir,
-    mut file: &mut HydrusFile,
-) -> Result<Vec<Sauce>> {
-    tracing::debug!("Creating tmp file for hydrus file {:?}", file.id);
-    let path = search::create_tmp_sauce_file(&tmpdir, &mut file).await?;
-    tracing::debug!("Getting sauce for hydrus file {:?}", file.id);
-
-    let sauce = handler.get_sauce(path.to_str().unwrap(), None, None)?;
-    tracing::debug!("Getting tags for hydrus file {:?}", file.id);
-    Ok(sauce)
-}
-
-async fn assign_pixiv_tags_and_url(
-    pixiv: &&PixivClient,
-    service: &ServiceName,
-    file: &mut &mut HydrusFile,
-    sauce: &Vec<Sauce>,
-) -> Result<()> {
-    let hash = file.hash().await?;
-    if let Some(url) = search::get_pixiv_url(&sauce) {
-        let tags = search::get_tags_for_sauce(&pixiv, url).await?;
-
-        if tags.len() > 0 {
-            tracing::info!("Found {} tags for file {:?}", tags.len(), hash);
-            file.add_tags(service.clone().into(), tags).await?;
+    for mut file in files {
+        let start = Instant::now();
+        if send_urls {
+            let _ = find_and_send_urls(&hydrus, &handler, &tmpdir, &mut file).await;
         } else {
-            tracing::info!("No tags for file {:?} found", hash);
+            let _ = find_and_send_tags(
+                opt.finish_tag.as_ref(),
+                &handler,
+                &pixiv,
+                &service,
+                &tmpdir,
+                &mut file,
+            )
+            .await;
         }
-        file.associate_urls(vec![url.to_string()]).await?;
-    } else {
-        tracing::info!("No pixiv post for file {:?} found", hash);
+        let elapsed = start.elapsed();
+
+        if elapsed.as_secs() < 8 {
+            tokio::time::sleep(sleep_duration - elapsed).await; // rate limit of 6# / 30s
+        }
     }
 
     Ok(())
