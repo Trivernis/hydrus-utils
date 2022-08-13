@@ -7,13 +7,13 @@ pixiv by using saucenao.
 
 You need to have cargo installed and can just do 
 ```
-cargo install hydrus-pixiv-tagger
+cargo install hydrus-utils
 ```
 
 Or build the binary yourself. You need a rust-toolchain installation (for example with [rustup](https://rustup.rs)).
 ```
-git clone https://github.com/Trivernis/hydrus-pixiv-tagger.git
-cd hydrus-pixiv-tagger
+git clone https://github.com/Trivernis/hydrus-utils.git
+cd hydrus-utils
 cargo build --release
 ```
 

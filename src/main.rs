@@ -1,9 +1,11 @@
+mod args;
 mod error;
 pub mod search;
 
 use crate::error::Result;
 use crate::search::get_urls;
-use clap::{Parser, Subcommand};
+use args::*;
+use clap::Parser;
 use hydrus_api::wrapper::hydrus_file::HydrusFile;
 use hydrus_api::wrapper::service::ServiceName;
 use hydrus_api::wrapper::tag::Tag;
@@ -13,59 +15,14 @@ use rustnao::{Handler, HandlerBuilder, Sauce};
 use tempdir::TempDir;
 use tokio::time::{Duration, Instant};
 
-#[derive(Parser, Debug)]
-#[clap(author, version, about)]
-struct Args {
-    #[clap(subcommand)]
-    subcommand: Command,
-
-    /// The hydrus client api key
-    #[clap(long, env)]
-    hydrus_key: String,
-
-    /// The url to the hydrus client api
-    #[clap(long, default_value = "http://127.0.0.1:45869", env)]
-    hydrus_url: String,
-}
-
-#[derive(Subcommand, Clone, Debug)]
-enum Command {
-    #[clap(name = "send-url")]
-    /// Sends urls to hydrus to be imported
-    SendUrl(Options),
-
-    #[clap(name = "send-tags")]
-    /// Maps the tags found for the hydrus url to the hydrus file
-    SendTags(Options),
-}
-
-#[derive(Parser, Debug, Clone)]
-struct Options {
-    /// The saucenao api key
-    #[clap(long, env)]
-    saucenao_key: String,
-
-    /// The tag service the tags will be assigned to
-    #[clap(long, default_value = "my tags")]
-    tag_service: String,
-
-    /// Tag that is assigned to files that have been processed
-    #[clap(long)]
-    finish_tag: Option<String>,
-
-    /// Tags used to search for files
-    #[clap(short, long)]
-    tags: Vec<String>,
-}
-
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
     env_logger::builder().init();
     let args: Args = Args::parse();
     log::debug!("args: {args:?}");
     let opt = match &args.subcommand {
-        Command::SendUrl(opt) => opt.clone(),
-        Command::SendTags(opt) => opt.clone(),
+        Command::FindAndSendUrl(opt) => opt.clone(),
+        Command::FindAndSendTags(opt) => opt.clone(),
     };
 
     let handler = HandlerBuilder::new()
@@ -89,10 +46,10 @@ async fn main() {
     for mut file in files {
         let start = Instant::now();
         match &args.subcommand {
-            Command::SendUrl(_) => {
+            Command::FindAndSendUrl(_) => {
                 let _ = search_and_send_urls(&hydrus, &handler, &tmpdir, &mut file).await;
             }
-            Command::SendTags(_) => {
+            Command::FindAndSendTags(_) => {
                 let _ = tag_file(
                     opt.finish_tag.as_ref(),
                     &handler,
