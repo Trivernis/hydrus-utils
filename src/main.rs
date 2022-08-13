@@ -11,10 +11,13 @@ use clap::Parser;
 use hydrus_api::wrapper::service::ServiceName;
 use hydrus_api::wrapper::tag::Tag;
 use hydrus_api::{Client, Hydrus};
+use operations::find_and_send_reddit_posts::find_and_send_reddit_posts;
 use pixiv_rs::PixivClient;
 use rustnao::{Handler, HandlerBuilder};
 use std::str::FromStr;
 use tempdir::TempDir;
+use tokio::fs::File;
+use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::time::{Duration, Instant};
 use tracing_subscriber::fmt::format::FmtSpan;
 use tracing_subscriber::EnvFilter;
@@ -29,6 +32,7 @@ async fn main() {
     match args.subcommand {
         Command::FindAndSendUrl(opt) => send_tags_or_urls(opt, hydrus, true).await,
         Command::FindAndSendTags(opt) => send_tags_or_urls(opt, hydrus, false).await,
+        Command::ImportRedditPosts(opt) => import_reddit_posts(opt, hydrus).await,
     }
     .expect("Failed to send tags or urls");
 }
@@ -47,7 +51,7 @@ fn init_logger() {
         .init();
 }
 
-async fn send_tags_or_urls(opt: Options, hydrus: Hydrus, send_urls: bool) -> Result<()> {
+async fn send_tags_or_urls(opt: LookupOptions, hydrus: Hydrus, send_urls: bool) -> Result<()> {
     let pixiv = PixivClient::new();
 
     let handler = HandlerBuilder::new()
@@ -88,4 +92,24 @@ async fn send_tags_or_urls(opt: Options, hydrus: Hydrus, send_urls: bool) -> Res
     }
 
     Ok(())
+}
+
+async fn import_reddit_posts(opt: ImportRedditOptions, hydrus: Hydrus) -> Result<()> {
+    let mut urls = Vec::new();
+
+    if let Some(input_file) = opt.input {
+        let file = File::open(input_file).await?;
+        let reader = BufReader::new(file);
+        let mut lines = reader.lines();
+
+        while let Some(line) = lines.next_line().await? {
+            urls.push(line);
+        }
+    } else if let Some(args_urls) = opt.urls {
+        urls = args_urls;
+    } else {
+        panic!("No reddit post urls provided");
+    }
+
+    find_and_send_reddit_posts(&hydrus, urls).await
 }

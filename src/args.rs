@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use clap::{Parser, Subcommand};
 
 #[derive(Parser, Debug)]
@@ -17,17 +19,21 @@ pub struct Args {
 
 #[derive(Subcommand, Clone, Debug)]
 pub enum Command {
-    #[clap(name = "send-url")]
     /// Looks up files on saucenao and sends urls to hydrus to be imported
-    FindAndSendUrl(Options),
+    #[clap(name = "send-url")]
+    FindAndSendUrl(LookupOptions),
 
-    #[clap(name = "send-tags")]
     /// Looks up files on saucenao and maps the tags found on pixiv to the files
-    FindAndSendTags(Options),
+    #[clap(name = "send-tags")]
+    FindAndSendTags(LookupOptions),
+
+    /// Looks up and imports reddit posts
+    #[clap(name = "import-reddit-posts")]
+    ImportRedditPosts(ImportRedditOptions),
 }
 
 #[derive(Parser, Debug, Clone)]
-pub struct Options {
+pub struct LookupOptions {
     /// The saucenao api key
     #[clap(long, env)]
     pub saucenao_key: String,
@@ -43,4 +49,16 @@ pub struct Options {
     /// Tags used to search for files
     #[clap(short, long)]
     pub tags: Vec<String>,
+}
+
+#[derive(Parser, Debug, Clone)]
+pub struct ImportRedditOptions {
+    /// A file containing all urls with each
+    /// url in a separate line
+    #[clap(short, long)]
+    pub input: Option<PathBuf>,
+
+    /// A list of urls to import
+    #[clap(short, long)]
+    pub urls: Option<Vec<String>>,
 }
