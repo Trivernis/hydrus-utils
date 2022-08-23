@@ -12,7 +12,7 @@ repository = "https://github.com/Trivernis/hydrus-pixiv-tagger"
 
 [dependencies]
 pixiv-rs = "0.1.0"
-hydrus-api = "0.9.3"
+hydrus-api = { version = "0.9.3", default-features = false, features = ["cbor"] }
 rustnao = "0.2.1"
 tempdir = "0.3.7"
 thiserror = "1.0.32"
