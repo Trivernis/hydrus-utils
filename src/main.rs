@@ -26,6 +26,8 @@ use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::time::{Duration, Instant};
 use tracing_subscriber::fmt::format::FmtSpan;
 use tracing_subscriber::EnvFilter;
+use utils::urls::find_url_type;
+use utils::urls::UrlType;
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
@@ -45,6 +47,7 @@ async fn main() {
         }
         Command::ImportRedditPosts(opt) => import_reddit_posts(opt, hydrus).await,
         Command::ImportTweets(opt) => import_tweets(opt, config.into_twitter_cfg(), hydrus).await,
+        Command::ImportUrls(opt) => import_urls(opt, config, hydrus).await,
     }
     .expect("Failed to send tags or urls");
 }
@@ -129,6 +132,39 @@ async fn import_tweets(
 ) -> Result<()> {
     let urls = get_urls_from_args(opt).await?;
     find_and_send_twitter_posts(&hydrus, twitter_cfg, urls).await
+}
+
+async fn import_urls(opt: ImportUrlsOptions, cfg: Config, hydrus: Hydrus) -> Result<()> {
+    let urls = get_urls_from_args(opt).await?;
+    let mut reddit_urls = Vec::new();
+    let mut twitter_urls = Vec::new();
+    let mut unknown_urls = Vec::new();
+
+    for url in urls {
+        match find_url_type(&url) {
+            UrlType::Reddit => reddit_urls.push(url),
+            UrlType::Twitter => twitter_urls.push(url),
+            UrlType::Other => {
+                tracing::warn!("Unknown url type {url}");
+                unknown_urls.push(url)
+            }
+        }
+    }
+    tracing::info!("Importing reddit posts...");
+    find_and_send_reddit_posts(&hydrus, reddit_urls).await?;
+
+    tracing::info!("Importing twitter posts...");
+    find_and_send_twitter_posts(&hydrus, cfg.into_twitter_cfg(), twitter_urls).await?;
+
+    tracing::info!("Importing unknown urls...");
+
+    for url in unknown_urls {
+        if let Err(e) = hydrus.import().url(&url).run().await {
+            tracing::error!("Failed to import {url}: {e}")
+        }
+    }
+
+    Ok(())
 }
 
 async fn get_urls_from_args(opt: ImportUrlsOptions) -> Result<Vec<String>> {

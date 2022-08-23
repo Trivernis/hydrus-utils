@@ -26,6 +26,7 @@ config = "0.13.2"
 directories = "4.0.1"
 color-eyre = "0.6.2"
 egg-mode = "0.16.0"
+lazy-regex = "2.3.0"
 
 [dependencies.tokio]
 version = "1.20.1"

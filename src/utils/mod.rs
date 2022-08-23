@@ -1,6 +1,7 @@
 pub mod pixiv;
 pub mod reddit;
 pub mod twitter;
+pub mod urls;
 use crate::error::Result;
 use directories::ProjectDirs;
 use std::{fs, path::PathBuf};
