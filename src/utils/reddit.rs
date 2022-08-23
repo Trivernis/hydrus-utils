@@ -2,6 +2,7 @@
 use std::collections::HashMap;
 
 use crate::Result;
+use lazy_regex::regex;
 use reqwest::{redirect::Policy, StatusCode};
 use serde::Deserialize;
 use serde_json::Value;
@@ -101,6 +102,9 @@ async fn get_post(url: &str) -> Result<T3Data> {
 /// Resolves reddit redirects
 #[tracing::instrument(level = "debug")]
 async fn resolve_redirects(url: &str) -> Result<String> {
+    if is_resolved(url) {
+        return Ok(url.to_string());
+    }
     let client = reqwest::Client::builder()
         .redirect(Policy::none())
         .build()?;
@@ -109,6 +113,13 @@ async fn resolve_redirects(url: &str) -> Result<String> {
         return Ok(location.to_str().unwrap().to_string());
     }
     Ok(url.to_string())
+}
+
+/// Checks if the url is already in a format that can be used for retrieving information
+/// about the post
+fn is_resolved(url: &str) -> bool {
+    let r = regex!(r#"^http(s)?://(www\.)?reddit\.com/r/\S+?/comments/\S+$"#);
+    r.is_match(url)
 }
 
 #[cfg(test)]

@@ -24,7 +24,12 @@ async fn import_post(post_url: &str, hydrus: &Hydrus) -> Result<()> {
     tracing::info!("Found {} images for post {}", images.len(), post_url);
 
     for url in images {
-        hydrus.import().url(url).run().await?;
+        let mut entry = hydrus.import().url(url).run().await?;
+        let files = entry.files().await?;
+
+        for mut file in files {
+            file.associate_urls(vec![post_url.to_string()]).await?;
+        }
     }
     Ok(())
 }
