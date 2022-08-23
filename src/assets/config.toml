@@ -1,0 +1,14 @@
+# Hydrus utils default config
+
+[hydrus]
+api_url = "http://127.0.0.1:45869"
+# api_key = "<API KEY>"
+
+# # Settings for saucenao file lookup
+# [saucenao]
+# api_key = "<API KEY>"
+
+# # Settings for fetching media from twitter urls
+# [twitter]
+# consumer_key = "<CONSUMER KEY>"
+# consumer_secret = "<CONSUMER SECRET>"

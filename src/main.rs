@@ -1,8 +1,11 @@
 mod args;
+mod config;
 mod error;
 mod operations;
 pub mod utils;
 
+use crate::config::Config;
+use crate::config::SauceNaoConfig;
 use crate::error::Result;
 use crate::operations::find_and_send_tags::find_and_send_tags;
 use crate::operations::find_and_send_urls::find_and_send_urls;
@@ -24,14 +27,20 @@ use tracing_subscriber::EnvFilter;
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
+    color_eyre::install().unwrap();
     init_logger();
     let args: Args = Args::parse();
+    let config = Config::read().expect("Failed to read configuration");
     tracing::debug!("args: {args:?}");
-    let hydrus = Hydrus::new(Client::new(&args.hydrus_url, &args.hydrus_key));
+    let hydrus = Hydrus::new(Client::new(&config.hydrus.api_url, &config.hydrus.api_key));
 
     match args.subcommand {
-        Command::FindAndSendUrl(opt) => send_tags_or_urls(opt, hydrus, true).await,
-        Command::FindAndSendTags(opt) => send_tags_or_urls(opt, hydrus, false).await,
+        Command::FindAndSendUrl(opt) => {
+            send_tags_or_urls(opt, config.into_saucenao(), hydrus, true).await
+        }
+        Command::FindAndSendTags(opt) => {
+            send_tags_or_urls(opt, config.into_saucenao(), hydrus, false).await
+        }
         Command::ImportRedditPosts(opt) => import_reddit_posts(opt, hydrus).await,
     }
     .expect("Failed to send tags or urls");
@@ -51,11 +60,17 @@ fn init_logger() {
         .init();
 }
 
-async fn send_tags_or_urls(opt: LookupOptions, hydrus: Hydrus, send_urls: bool) -> Result<()> {
+#[tracing::instrument(level = "debug", skip(hydrus))]
+async fn send_tags_or_urls(
+    opt: LookupOptions,
+    saucenao_cfg: SauceNaoConfig,
+    hydrus: Hydrus,
+    send_urls: bool,
+) -> Result<()> {
     let pixiv = PixivClient::new();
 
     let handler = HandlerBuilder::new()
-        .api_key(&opt.saucenao_key)
+        .api_key(&saucenao_cfg.api_key)
         .min_similarity(80)
         .db(Handler::PIXIV)
         .build();
@@ -94,6 +109,7 @@ async fn send_tags_or_urls(opt: LookupOptions, hydrus: Hydrus, send_urls: bool) 
     Ok(())
 }
 
+#[tracing::instrument(level = "debug", skip(hydrus))]
 async fn import_reddit_posts(opt: ImportRedditOptions, hydrus: Hydrus) -> Result<()> {
     let mut urls = Vec::new();
 
@@ -103,7 +119,9 @@ async fn import_reddit_posts(opt: ImportRedditOptions, hydrus: Hydrus) -> Result
         let mut lines = reader.lines();
 
         while let Some(line) = lines.next_line().await? {
-            urls.push(line);
+            if line.len() > 0 {
+                urls.push(line);
+            }
         }
     } else if let Some(args_urls) = opt.urls {
         urls = args_urls;

@@ -2,8 +2,10 @@
 use std::collections::HashMap;
 
 use crate::Result;
+use reqwest::{redirect::Policy, StatusCode};
 use serde::Deserialize;
 use serde_json::Value;
+use std::fmt::Debug;
 
 #[derive(Deserialize)]
 #[serde(tag = "kind", content = "data")]
@@ -50,7 +52,8 @@ struct GalleryItem {
 }
 
 /// Returns all images associated with a post
-pub async fn get_post_images<S: AsRef<str>>(post_url: S) -> Result<Vec<String>> {
+#[tracing::instrument(level = "debug")]
+pub async fn get_post_images<S: AsRef<str> + Debug>(post_url: S) -> Result<Vec<String>> {
     let post_data = get_post(post_url.as_ref()).await?;
 
     if let Some(gallery_data) = post_data.gallery_data {
@@ -68,7 +71,18 @@ pub async fn get_post_images<S: AsRef<str>>(post_url: S) -> Result<Vec<String>> 
     }
 }
 
+#[tracing::instrument(level = "debug")]
 async fn get_post(url: &str) -> Result<T3Data> {
+    let mut url = resolve_redirects(url).await?;
+
+    // url cleanup
+    // add trailing slash and remove path params
+    if !url.ends_with('/') {
+        if let Some((left, right)) = url.rsplit_once('?') {
+            url = left.to_string();
+        }
+        url.push('/');
+    }
     let mut response: Vec<DataEntry> = reqwest::get(format!("{}.json", url)).await?.json().await?;
     response.reverse();
     let first_entry = response.pop().unwrap();
@@ -82,6 +96,19 @@ async fn get_post(url: &str) -> Result<T3Data> {
         DataEntryChild::T3(t3) => Ok(t3),
         DataEntryChild::T1(_) | DataEntryChild::More(_) => panic!("Invalid data entry t1 or more"),
     }
+}
+
+/// Resolves reddit redirects
+#[tracing::instrument(level = "debug")]
+async fn resolve_redirects(url: &str) -> Result<String> {
+    let client = reqwest::Client::builder()
+        .redirect(Policy::none())
+        .build()?;
+    let response = client.get(url).send().await?;
+    if let Some(location) = response.headers().get("location") {
+        return Ok(location.to_str().unwrap().to_string());
+    }
+    Ok(url.to_string())
 }
 
 #[cfg(test)]

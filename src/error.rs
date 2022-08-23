@@ -21,6 +21,9 @@ pub enum Error {
 
     #[error(transparent)]
     Reqwest(#[from] reqwest::Error),
+
+    #[error("Error in config {0}")]
+    Config(#[from] config::ConfigError),
 }
 
 impl From<RustNaoError> for Error {

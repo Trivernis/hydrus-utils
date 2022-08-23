@@ -3,6 +3,7 @@ use hydrus_api::Hydrus;
 use crate::error::Result;
 use crate::utils::reddit::get_post_images;
 
+#[tracing::instrument(level = "debug", skip(hydrus))]
 pub async fn find_and_send_reddit_posts(hydrus: &Hydrus, post_urls: Vec<String>) -> Result<()> {
     let total_posts = post_urls.len();
 
