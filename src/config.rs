@@ -50,9 +50,15 @@ impl Config {
         Ok(settings.try_deserialize()?)
     }
 
-    /// Returns the saucenao configuratio or panics if nothing is configured
+    /// Returns the saucenao configuration or panics if nothing is configured
     pub fn into_saucenao(self) -> SauceNaoConfig {
         self.saucenao
             .expect("No saucenao key configured. Please add one to the config file.")
+    }
+
+    /// REturns the twitter api configuration or panics if nothing is configured
+    pub fn into_twitter_cfg(self) -> TwitterConfig {
+        self.twitter
+            .expect("No twitter api credentials configured. Please add them to the config file.")
     }
 }

@@ -21,7 +21,11 @@ pub enum Command {
 
     /// Looks up and imports reddit posts
     #[clap(name = "import-reddit-posts")]
-    ImportRedditPosts(ImportRedditOptions),
+    ImportRedditPosts(ImportUrlsOptions),
+
+    /// Looks up and imports tweets
+    #[clap(name = "import-tweets")]
+    ImportTweets(ImportUrlsOptions),
 }
 
 #[derive(Parser, Debug, Clone)]
@@ -40,7 +44,7 @@ pub struct LookupOptions {
 }
 
 #[derive(Parser, Debug, Clone)]
-pub struct ImportRedditOptions {
+pub struct ImportUrlsOptions {
     /// A file containing all urls with each
     /// url in a separate line
     #[clap(short, long)]

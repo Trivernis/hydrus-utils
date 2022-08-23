@@ -6,6 +6,7 @@ pub mod utils;
 
 use crate::config::Config;
 use crate::config::SauceNaoConfig;
+use crate::config::TwitterConfig;
 use crate::error::Result;
 use crate::operations::find_and_send_tags::find_and_send_tags;
 use crate::operations::find_and_send_urls::find_and_send_urls;
@@ -15,6 +16,7 @@ use hydrus_api::wrapper::service::ServiceName;
 use hydrus_api::wrapper::tag::Tag;
 use hydrus_api::{Client, Hydrus};
 use operations::find_and_send_reddit_posts::find_and_send_reddit_posts;
+use operations::find_and_send_twitter_posts::find_and_send_twitter_posts;
 use pixiv_rs::PixivClient;
 use rustnao::{Handler, HandlerBuilder};
 use std::str::FromStr;
@@ -42,6 +44,7 @@ async fn main() {
             send_tags_or_urls(opt, config.into_saucenao(), hydrus, false).await
         }
         Command::ImportRedditPosts(opt) => import_reddit_posts(opt, hydrus).await,
+        Command::ImportTweets(opt) => import_tweets(opt, config.into_twitter_cfg(), hydrus).await,
     }
     .expect("Failed to send tags or urls");
 }
@@ -113,9 +116,23 @@ async fn send_tags_or_urls(
 }
 
 #[tracing::instrument(level = "debug", skip(hydrus))]
-async fn import_reddit_posts(opt: ImportRedditOptions, hydrus: Hydrus) -> Result<()> {
-    let mut urls = Vec::new();
+async fn import_reddit_posts(opt: ImportUrlsOptions, hydrus: Hydrus) -> Result<()> {
+    let urls = get_urls_from_args(opt).await?;
+    find_and_send_reddit_posts(&hydrus, urls).await
+}
 
+#[tracing::instrument(level = "debug", skip(hydrus))]
+async fn import_tweets(
+    opt: ImportUrlsOptions,
+    twitter_cfg: TwitterConfig,
+    hydrus: Hydrus,
+) -> Result<()> {
+    let urls = get_urls_from_args(opt).await?;
+    find_and_send_twitter_posts(&hydrus, twitter_cfg, urls).await
+}
+
+async fn get_urls_from_args(opt: ImportUrlsOptions) -> Result<Vec<String>> {
+    let mut urls = Vec::new();
     if let Some(input_file) = opt.input {
         let file = File::open(input_file).await?;
         let reader = BufReader::new(file);
@@ -129,8 +146,7 @@ async fn import_reddit_posts(opt: ImportRedditOptions, hydrus: Hydrus) -> Result
     } else if let Some(args_urls) = opt.urls {
         urls = args_urls;
     } else {
-        panic!("No reddit post urls provided");
+        panic!("No urls provided");
     }
-
-    find_and_send_reddit_posts(&hydrus, urls).await
+    Ok(urls)
 }

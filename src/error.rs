@@ -24,10 +24,28 @@ pub enum Error {
 
     #[error("Error in config {0}")]
     Config(#[from] config::ConfigError),
+
+    #[error(transparent)]
+    Twitter(#[from] egg_mode::error::Error),
+
+    #[error("{0}")]
+    String(String),
 }
 
 impl From<RustNaoError> for Error {
     fn from(e: RustNaoError) -> Self {
         Self::RustNao(e.to_string())
+    }
+}
+
+impl From<String> for Error {
+    fn from(s: String) -> Self {
+        Self::String(s)
+    }
+}
+
+impl From<&str> for Error {
+    fn from(s: &str) -> Self {
+        Self::String(s.to_string())
     }
 }
