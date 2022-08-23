@@ -17,7 +17,7 @@ pub fn find_url_type(url: &str) -> UrlType {
 }
 
 fn is_reddit_url(url: &str) -> bool {
-    let r = regex!(r#"^http(s)?://(www\.)?(reddit\.com|redd\.it).*$"#i);
+    let r = regex!(r#"^http(s)?://(www\.)?(reddit\.com|redd\.it|reddit\.app\.link).*$"#i);
     r.is_match(url)
 }
 
