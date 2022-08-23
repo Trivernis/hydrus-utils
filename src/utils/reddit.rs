@@ -78,10 +78,10 @@ async fn get_post(url: &str) -> Result<T3Data> {
 
     // url cleanup
     // add trailing slash and remove path params
+    if let Some((left, right)) = url.rsplit_once('?') {
+        url = left.to_string();
+    }
     if !url.ends_with('/') {
-        if let Some((left, right)) = url.rsplit_once('?') {
-            url = left.to_string();
-        }
         url.push('/');
     }
     let mut response: Vec<DataEntry> = reqwest::get(format!("{}.json", url)).await?.json().await?;
@@ -103,16 +103,21 @@ async fn get_post(url: &str) -> Result<T3Data> {
 #[tracing::instrument(level = "debug")]
 async fn resolve_redirects(url: &str) -> Result<String> {
     if is_resolved(url) {
+        tracing::debug!("Url already resolved.");
         return Ok(url.to_string());
     }
     let client = reqwest::Client::builder()
         .redirect(Policy::none())
         .build()?;
-    let response = client.get(url).send().await?;
+    let response = client.head(url).send().await?;
+
     if let Some(location) = response.headers().get("location") {
-        return Ok(location.to_str().unwrap().to_string());
+        tracing::debug!("Redirect to {location:?} found");
+        Ok(location.to_str().unwrap().to_string())
+    } else {
+        tracing::debug!("No redirect found.");
+        Ok(response.url().as_str().to_string())
     }
-    Ok(url.to_string())
 }
 
 /// Checks if the url is already in a format that can be used for retrieving information
