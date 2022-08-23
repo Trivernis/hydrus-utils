@@ -83,9 +83,12 @@ async fn send_tags_or_urls(
     let tmpdir = TempDir::new("hydrus-files").unwrap();
 
     let sleep_duration = Duration::from_secs(6);
+    let total_files = files.len();
 
-    for mut file in files {
+    for (i, mut file) in files.into_iter().enumerate() {
         let start = Instant::now();
+        tracing::info!("Searching for file {} out of {}", i + 1, total_files);
+
         if send_urls {
             let _ = find_and_send_urls(&hydrus, &handler, &tmpdir, &mut file).await;
         } else {

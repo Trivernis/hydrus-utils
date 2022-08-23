@@ -5,6 +5,7 @@ use tempdir::TempDir;
 use crate::error::Result;
 use crate::utils::pixiv::{get_sauces_for_file, get_urls};
 
+#[tracing::instrument(level = "debug", skip_all)]
 pub async fn find_and_send_urls(
     hydrus: &Hydrus,
     handler: &Handler,

@@ -7,6 +7,7 @@ use pixiv_rs::PixivClient;
 use rustnao::{Handler, Sauce};
 use tempdir::TempDir;
 
+#[tracing::instrument(level = "debug", skip_all)]
 pub async fn find_and_send_tags(
     finish_tag: Option<&String>,
     handler: &Handler,
@@ -27,6 +28,7 @@ pub async fn find_and_send_tags(
     Ok(())
 }
 
+#[tracing::instrument(level = "debug", skip_all)]
 async fn search_and_assign_tags(
     handler: &Handler,
     pixiv: &PixivClient,
@@ -40,6 +42,7 @@ async fn search_and_assign_tags(
     assign_pixiv_tags_and_url(&pixiv, service, &mut file, &sauces).await
 }
 
+#[tracing::instrument(level = "debug", skip_all)]
 async fn assign_pixiv_tags_and_url(
     pixiv: &&PixivClient,
     service: &ServiceName,

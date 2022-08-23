@@ -37,9 +37,14 @@ impl Config {
         if !config_file_path.exists() {
             fs::write(&config_file_path, include_str!("assets/config.toml"))?;
         }
-        let settings = config::Config::builder()
-            .add_source(config::File::with_name(config_file_path.to_str().unwrap()))
-            .build()?;
+        let mut builder = config::Config::builder()
+            .add_source(config::File::with_name(config_file_path.to_str().unwrap()));
+
+        let local_config = PathBuf::from(".hydrus-utils.toml");
+        if local_config.exists() {
+            builder = builder.add_source(config::File::with_name(".hydrus-utils.toml"));
+        }
+        let settings = builder.build()?;
         tracing::debug!("Config is {settings:?}");
 
         Ok(settings.try_deserialize()?)
