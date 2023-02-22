@@ -6,7 +6,6 @@ pub mod utils;
 
 use crate::config::Config;
 use crate::config::SauceNaoConfig;
-use crate::config::TwitterConfig;
 use crate::error::Result;
 use crate::operations::find_and_send_tags::find_and_send_tags;
 use crate::operations::find_and_send_urls::find_and_send_urls;
@@ -16,7 +15,6 @@ use hydrus_api::wrapper::service::ServiceName;
 use hydrus_api::wrapper::tag::Tag;
 use hydrus_api::{Client, Hydrus};
 use operations::find_and_send_reddit_posts::find_and_send_reddit_posts;
-use operations::find_and_send_twitter_posts::find_and_send_twitter_posts;
 use pixiv_rs::PixivClient;
 use rustnao::{Handler, HandlerBuilder};
 use std::str::FromStr;
@@ -46,8 +44,7 @@ async fn main() {
             send_tags_or_urls(opt, config.into_saucenao(), hydrus, false).await
         }
         Command::ImportRedditPosts(opt) => import_reddit_posts(opt, hydrus).await,
-        Command::ImportTweets(opt) => import_tweets(opt, config.into_twitter_cfg(), hydrus).await,
-        Command::ImportUrls(opt) => import_urls(opt, config, hydrus).await,
+        Command::ImportUrls(opt) => import_urls(opt, hydrus).await,
     }
     .expect("Failed to send tags or urls");
 }
@@ -124,26 +121,14 @@ async fn import_reddit_posts(opt: ImportUrlsOptions, hydrus: Hydrus) -> Result<(
     find_and_send_reddit_posts(&hydrus, urls).await
 }
 
-#[tracing::instrument(level = "debug", skip(hydrus))]
-async fn import_tweets(
-    opt: ImportUrlsOptions,
-    twitter_cfg: TwitterConfig,
-    hydrus: Hydrus,
-) -> Result<()> {
-    let urls = get_urls_from_args(opt).await?;
-    find_and_send_twitter_posts(&hydrus, twitter_cfg, urls).await
-}
-
-async fn import_urls(opt: ImportUrlsOptions, cfg: Config, hydrus: Hydrus) -> Result<()> {
+async fn import_urls(opt: ImportUrlsOptions, hydrus: Hydrus) -> Result<()> {
     let urls = get_urls_from_args(opt).await?;
     let mut reddit_urls = Vec::new();
-    let mut twitter_urls = Vec::new();
     let mut unknown_urls = Vec::new();
 
     for url in urls {
         match find_url_type(&url) {
             UrlType::Reddit => reddit_urls.push(url),
-            UrlType::Twitter => twitter_urls.push(url),
             UrlType::Other => {
                 tracing::warn!("Unknown url type {url}");
                 unknown_urls.push(url)
@@ -152,9 +137,6 @@ async fn import_urls(opt: ImportUrlsOptions, cfg: Config, hydrus: Hydrus) -> Res
     }
     tracing::info!("Importing reddit posts...");
     find_and_send_reddit_posts(&hydrus, reddit_urls).await?;
-
-    tracing::info!("Importing twitter posts...");
-    find_and_send_twitter_posts(&hydrus, cfg.into_twitter_cfg(), twitter_urls).await?;
 
     tracing::info!("Importing unknown urls...");
 

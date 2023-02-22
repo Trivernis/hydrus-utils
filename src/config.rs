@@ -55,10 +55,4 @@ impl Config {
         self.saucenao
             .expect("No saucenao key configured. Please add one to the config file.")
     }
-
-    /// REturns the twitter api configuration or panics if nothing is configured
-    pub fn into_twitter_cfg(self) -> TwitterConfig {
-        self.twitter
-            .expect("No twitter api credentials configured. Please add them to the config file.")
-    }
 }
