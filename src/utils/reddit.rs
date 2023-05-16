@@ -3,6 +3,7 @@ use std::collections::HashMap;
 
 use crate::Result;
 use lazy_regex::regex;
+use reqwest::ClientBuilder;
 use reqwest::{redirect::Policy, StatusCode};
 use serde::Deserialize;
 use serde_json::Value;
@@ -84,7 +85,15 @@ async fn get_post(url: &str) -> Result<T3Data> {
     if !url.ends_with('/') {
         url.push('/');
     }
-    let mut response: Vec<DataEntry> = reqwest::get(format!("{}.json", url)).await?.json().await?;
+    let client = ClientBuilder::default()
+        .user_agent(fakeit::user_agent::random_platform())
+        .build()?;
+    let mut response: Vec<DataEntry> = client
+        .get(format!("{}.json", url))
+        .send()
+        .await?
+        .json()
+        .await?;
     response.reverse();
     let first_entry = response.pop().unwrap();
     let mut first_listing = match first_entry {
