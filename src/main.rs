@@ -107,7 +107,7 @@ async fn send_tags_or_urls(
         }
         let elapsed = start.elapsed();
 
-        if elapsed.as_secs() < 8 {
+        if elapsed.as_secs() < 8 && sleep_duration > elapsed {
             tokio::time::sleep(sleep_duration - elapsed).await; // rate limit of 6# / 30s
         }
     }
