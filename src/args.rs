@@ -23,6 +23,10 @@ pub enum Command {
     #[clap(name = "import-reddit-posts")]
     ImportRedditPosts(ImportUrlsOptions),
 
+    /// Looks up and imports fedi posts
+    #[clap(name = "import-fedi-posts")]
+    ImportFediPosts(ImportUrlsOptions),
+
     /// Looks up a list of urls and imports media found for them
     #[clap(name = "import-urls")]
     ImportUrls(ImportUrlsOptions),

@@ -7,6 +7,7 @@ pub mod utils;
 use crate::config::Config;
 use crate::config::SauceNaoConfig;
 use crate::error::Result;
+use crate::operations::find_and_send_fedi_posts::find_and_send_fedi_posts;
 use crate::operations::find_and_send_tags::find_and_send_tags;
 use crate::operations::find_and_send_urls::find_and_send_urls;
 use args::*;
@@ -44,6 +45,7 @@ async fn main() {
             send_tags_or_urls(opt, config.into_saucenao(), hydrus, false).await
         }
         Command::ImportRedditPosts(opt) => import_reddit_posts(opt, hydrus).await,
+        Command::ImportFediPosts(opt) => import_fedi_posts(opt, hydrus).await,
         Command::ImportUrls(opt) => import_urls(opt, hydrus).await,
     }
     .expect("Failed to send tags or urls");
@@ -121,14 +123,22 @@ async fn import_reddit_posts(opt: ImportUrlsOptions, hydrus: Hydrus) -> Result<(
     find_and_send_reddit_posts(&hydrus, urls).await
 }
 
+#[tracing::instrument(level = "debug", skip(hydrus))]
+async fn import_fedi_posts(opt: ImportUrlsOptions, hydrus: Hydrus) -> Result<()> {
+    let urls = get_urls_from_args(opt).await?;
+    find_and_send_fedi_posts(&hydrus, urls).await
+}
+
 async fn import_urls(opt: ImportUrlsOptions, hydrus: Hydrus) -> Result<()> {
     let urls = get_urls_from_args(opt).await?;
     let mut reddit_urls = Vec::new();
+    let mut fedi_urls = Vec::new();
     let mut unknown_urls = Vec::new();
 
     for url in urls {
-        match find_url_type(&url) {
+        match find_url_type(&url).await {
             UrlType::Reddit => reddit_urls.push(url),
+            UrlType::Fedi => fedi_urls.push(url),
             UrlType::Other => {
                 tracing::warn!("Unknown url type {url}");
                 unknown_urls.push(url)
@@ -137,6 +147,7 @@ async fn import_urls(opt: ImportUrlsOptions, hydrus: Hydrus) -> Result<()> {
     }
     tracing::info!("Importing reddit posts...");
     find_and_send_reddit_posts(&hydrus, reddit_urls).await?;
+    find_and_send_fedi_posts(&hydrus, fedi_urls).await?;
 
     tracing::info!("Importing unknown urls...");
 

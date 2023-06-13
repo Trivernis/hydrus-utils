@@ -1,13 +1,17 @@
+use super::fedi;
 use lazy_regex::regex;
 
 pub enum UrlType {
     Reddit,
+    Fedi,
     Other,
 }
 
-pub fn find_url_type(url: &str) -> UrlType {
+pub async fn find_url_type(url: &str) -> UrlType {
     if is_reddit_url(url) {
         UrlType::Reddit
+    } else if fedi::is_fedi_url(url).await {
+        UrlType::Fedi
     } else {
         UrlType::Other
     }
