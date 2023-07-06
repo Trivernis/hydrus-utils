@@ -28,6 +28,7 @@ color-eyre = "0.6.2"
 egg-mode = "0.16.1"
 lazy-regex = "2.4.1"
 fakeit = "1.1.1"
+futures = "0.3.28"
 
 [dependencies.tokio]
 version = "1.25.0"
