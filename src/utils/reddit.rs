@@ -111,22 +111,29 @@ async fn get_post(url: &str) -> Result<T3Data> {
 /// Resolves reddit redirects
 #[tracing::instrument(level = "debug")]
 async fn resolve_redirects(url: &str) -> Result<String> {
-    if is_resolved(url) {
-        tracing::debug!("Url already resolved.");
-        return Ok(url.to_string());
-    }
-    let client = reqwest::Client::builder()
-        .redirect(Policy::none())
-        .build()?;
-    let response = client.head(url).send().await?;
+    let mut url = url.to_string();
 
-    if let Some(location) = response.headers().get("location") {
-        tracing::debug!("Redirect to {location:?} found");
-        Ok(location.to_str().unwrap().to_string())
-    } else {
-        tracing::debug!("No redirect found.");
-        Ok(response.url().as_str().to_string())
+    for _ in 0..10 {
+        if is_resolved(&url) {
+            tracing::debug!("Url already resolved.");
+            return Ok(url);
+        }
+        let client = reqwest::Client::builder()
+            .user_agent(fakeit::user_agent::random_platform())
+            .redirect(Policy::none())
+            .build()?;
+        let response = client.get(url).send().await?;
+
+        if let Some(location) = response.headers().get("location") {
+            tracing::debug!("Redirect to {location:?} found");
+            url = location.to_str().unwrap().to_string();
+        } else {
+            tracing::debug!("No redirect found.");
+            return Ok(response.url().as_str().to_string());
+        }
     }
+
+    Ok(url)
 }
 
 /// Checks if the url is already in a format that can be used for retrieving information
@@ -148,6 +155,14 @@ mod test {
     }
 
     #[tokio::test]
+    async fn it_finds_post_images2() {
+        let images = super::get_post_images("https://reddit.com/r/HentaiBullying/s/S1gKoG4s2S/")
+            .await
+            .unwrap();
+        assert!(images.is_empty() == false);
+    }
+
+    #[tokio::test]
     async fn it_finds_multiple_post_images() {
         let images =
             super::get_post_images("https://www.reddit.com/r/dogelore/comments/wmas8c/le_yakuza/")
@@ -164,7 +179,6 @@ mod test {
         println!("{:?}", post.url);
         assert!(post.url.is_some());
     }
-
     #[tokio::test]
     async fn it_finds_info_for_gallery_posts() {
         let post = super::get_post("https://www.reddit.com/r/dogelore/comments/wmas8c/le_yakuza/")

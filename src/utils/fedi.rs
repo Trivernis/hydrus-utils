@@ -80,6 +80,14 @@ async fn it_retrieves_post_data() {
 }
 
 #[tokio::test]
+async fn it_retrieves_post_misskey() {
+    let data = get_post("https://social.funkyfish.cool/notes/97ng0c9is3")
+        .await
+        .unwrap();
+    assert!(!data.attachment.is_empty());
+}
+
+#[tokio::test]
 async fn it_retrieves_post_images() {
     let images = get_post_images("https://lemmy.blahaj.zone/post/113727")
         .await

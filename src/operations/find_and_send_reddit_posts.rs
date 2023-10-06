@@ -2,6 +2,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
 use hydrus_api::Hydrus;
+use tokio::sync::Semaphore;
 
 use crate::error::Result;
 use crate::utils::reddit::get_post_images;
@@ -15,11 +16,21 @@ pub async fn find_and_send_reddit_posts(hydrus: &Hydrus, post_urls: Vec<String>)
     tracing::info!("Retrieving post data...");
     let counter = Arc::new(AtomicUsize::new(1));
 
+    let sem = Arc::new(Semaphore::new(2));
     let post_results = future::join_all(post_urls.into_iter().enumerate().map(|(i, p)| {
         let counter = Arc::clone(&counter);
+        let sem = Arc::clone(&sem);
 
         async move {
-            let img = get_post_images(&p).await?;
+            let permit = sem.acquire_owned().await.unwrap();
+            let img = match get_post_images(&p).await {
+                Ok(img) => img,
+                Err(e) => {
+                    tracing::error!("Failed to retrieve info for {p} : {e}");
+                    return Err(e);
+                }
+            };
+            std::mem::drop(permit);
             tracing::info!(
                 "Got info for {} of {total_posts}",
                 counter.fetch_add(1, Ordering::SeqCst)
