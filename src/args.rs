@@ -30,6 +30,10 @@ pub enum Command {
     /// Looks up a list of urls and imports media found for them
     #[clap(name = "import-urls")]
     ImportUrls(ImportUrlsOptions),
+
+    /// Tag a file with a given identifier. The identifier is sent via stdin
+    #[clap(name = "tag")]
+    Tag(TagOptions),
 }
 
 #[derive(Parser, Debug, Clone)]
@@ -57,4 +61,19 @@ pub struct ImportUrlsOptions {
     /// A list of urls to import
     #[clap(short, long)]
     pub urls: Option<Vec<String>>,
+}
+
+#[derive(Parser, Debug, Clone)]
+pub struct TagOptions {
+    /// The tag service the tags will be assigned to
+    #[clap(long, default_value = "my tags")]
+    pub tag_service: String,
+
+    /// A list of file hashes
+    #[clap(long)]
+    pub files: Vec<String>,
+
+    /// The tags to assign
+    #[clap(short, long)]
+    pub tags: Vec<String>,
 }

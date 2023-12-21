@@ -988,9 +988,9 @@ checksum = "c4a1e36c821dbe04574f602848a19f742f4fb3c98d40449f11bcad18d6b17421"
 
 [[package]]
 name = "hydrus-api"
-version = "0.9.3"
+version = "0.10.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a3ee4a01380e02f9bf73d14e87021c756bc06d9838662a6bc27c786bba3b26c0"
+checksum = "4d751951817b71e4d86ffd345fbfa0113fe8786c7696d49b8820d1af37cc9634"
 dependencies = [
  "bytes 1.4.0",
  "chrono",

@@ -2,7 +2,7 @@ use crate::{
     error::Result,
     utils::pixiv::{get_pixiv_url, get_sauces_for_file, get_tags_for_sauce},
 };
-use hydrus_api::wrapper::{hydrus_file::HydrusFile, service::ServiceName};
+use hydrus_api::wrapper::hydrus_file::HydrusFile;
 use pixiv_rs::PixivClient;
 use rustnao::{Handler, Sauce};
 use tempdir::TempDir;
@@ -12,15 +12,16 @@ pub async fn find_and_send_tags(
     finish_tag: Option<&String>,
     handler: &Handler,
     pixiv: &PixivClient,
-    service: &ServiceName,
+    service_key: &str,
     tmpdir: &TempDir,
     mut file: &mut HydrusFile,
 ) -> Result<()> {
-    if let Err(e) = search_and_assign_tags(&handler, &pixiv, &service, &tmpdir, &mut file).await {
+    if let Err(e) = search_and_assign_tags(&handler, &pixiv, service_key, &tmpdir, &mut file).await
+    {
         let hash = file.hash().await.unwrap();
         tracing::error!("Failed to search tags to file {}: {:?}", hash, e);
     } else if let Some(finish_tag) = finish_tag {
-        file.add_tags(service.clone().into(), vec![finish_tag.into()])
+        file.add_tags(service_key.to_owned(), vec![finish_tag.into()])
             .await
             .unwrap();
     }
@@ -32,20 +33,20 @@ pub async fn find_and_send_tags(
 async fn search_and_assign_tags(
     handler: &Handler,
     pixiv: &PixivClient,
-    service: &ServiceName,
+    service_key: &str,
     tmpdir: &TempDir,
     mut file: &mut HydrusFile,
 ) -> Result<()> {
     tracing::debug!("Getting tags for hydrus file {:?}", file.id);
     let sauces = get_sauces_for_file(&handler, tmpdir, file).await?;
 
-    assign_pixiv_tags_and_url(&pixiv, service, &mut file, &sauces).await
+    assign_pixiv_tags_and_url(&pixiv, service_key, &mut file, &sauces).await
 }
 
 #[tracing::instrument(level = "debug", skip_all)]
 async fn assign_pixiv_tags_and_url(
     pixiv: &&PixivClient,
-    service: &ServiceName,
+    service_key: &str,
     file: &mut &mut HydrusFile,
     sauce: &Vec<Sauce>,
 ) -> Result<()> {
@@ -55,7 +56,7 @@ async fn assign_pixiv_tags_and_url(
 
         if tags.len() > 0 {
             tracing::info!("Found {} tags for file {:?}", tags.len(), hash);
-            file.add_tags(service.clone().into(), tags).await?;
+            file.add_tags(service_key.to_owned(), tags).await?;
         } else {
             tracing::info!("No tags for file {:?} found", hash);
         }

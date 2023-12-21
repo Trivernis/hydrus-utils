@@ -12,6 +12,8 @@ use crate::operations::find_and_send_tags::find_and_send_tags;
 use crate::operations::find_and_send_urls::find_and_send_urls;
 use args::*;
 use clap::Parser;
+use hydrus_api::api_core::common::FileIdentifier;
+use hydrus_api::api_core::endpoints::adding_tags::TagAction;
 use hydrus_api::wrapper::service::ServiceName;
 use hydrus_api::wrapper::tag::Tag;
 use hydrus_api::{Client, Hydrus};
@@ -47,6 +49,7 @@ async fn main() {
         Command::ImportRedditPosts(opt) => import_reddit_posts(opt, hydrus).await,
         Command::ImportFediPosts(opt) => import_fedi_posts(opt, hydrus).await,
         Command::ImportUrls(opt) => import_urls(opt, hydrus).await,
+        Command::Tag(opt) => tag_files(opt, hydrus).await,
     }
     .expect("Failed to send tags or urls");
 }
@@ -89,6 +92,7 @@ async fn send_tags_or_urls(
 
     let sleep_duration = Duration::from_secs(6);
     let total_files = files.len();
+    let service_key = hydrus.get_service_key(service.into()).await?;
 
     for (i, mut file) in files.into_iter().enumerate() {
         let start = Instant::now();
@@ -101,7 +105,7 @@ async fn send_tags_or_urls(
                 opt.finish_tag.as_ref(),
                 &handler,
                 &pixiv,
-                &service,
+                &service_key,
                 &tmpdir,
                 &mut file,
             )
@@ -178,4 +182,20 @@ async fn get_urls_from_args(opt: ImportUrlsOptions) -> Result<Vec<String>> {
         panic!("No urls provided");
     }
     Ok(urls)
+}
+
+async fn tag_files(opt: TagOptions, hydrus: Hydrus) -> Result<()> {
+    let tags = opt.tags.into_iter().map(Tag::from).collect::<Vec<_>>();
+    let service_key = hydrus
+        .get_service_key(ServiceName(opt.tag_service).into())
+        .await?;
+
+    for file in opt.files {
+        hydrus
+            .file(FileIdentifier::hash(file))
+            .await?
+            .add_tags(service_key.to_owned(), tags.clone())
+            .await?;
+    }
+    Ok(())
 }
